@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тепличный Север</title>
+    <link rel="stylesheet" href="/statics/styles/harvestApplication.css?v=20250918">
+</head>
+<body>
+<header>
+    <h1>
+        <a href="/harvestResources" style="color: white; text-decoration: none;">
+            Тепличный север
+        </a>
+    </h1>
+</header>
+    
+    <div class="application-container">
+        <h1 class="application-title">Оформление заявки</h1>
+        
+        <div class="application-form">
+            <h2 class="section-title">Информация о культуре</h2>
+            
+        <form action="/harvestApplication/{{.harvestApplicationID}}/setChanges" method="POST">
+            <div class="culture-info">
+                <div class="input-group">
+                    <div class="culture-type-label">Урожайность (кг/м²)</div>
+                    <input type="number" 
+                        name="productivity"
+                        id="yield-input"
+                        value="{{.harvestApplicationInfo.Productivity}}" 
+                        min="1" max="20" required>
+                    <div class="input-limit">От 1 до 20 кг/м²</div>
+                </div>
+                
+                <div class="input-group">
+                    <div class="harvest-amount-label">Планируемый урожай (кг)</div>
+                    <input type="number" 
+                        name="weight"
+                        id="planned-harvest"
+                        value="{{.harvestApplicationInfo.Weight}}" 
+                        min="0" max="1000"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value > 1000) this.value = 1000;"
+                        required>
+                    <div class="input-limit">Максимум 1000 кг</div>
+                </div>
+            </div>
+            <button type="submit" style="display:none"></button>
+        </form>
+            
+            <h2 class="service-title">Выбранные услуги</h2>
+                
+            <div class="services-section">
+                {{range .harvestApplication}}
+                <div class="service-item">
+                    <img src="{{.ResourceImageURL}}" alt="{{.ResourceName}}" class="service-image">
+                    <div class="service-content">
+                        <div class="service-name">{{.ResourceName}}</div>
+                        <div class="service-usage">
+                            <input type="text" class="coefficient-input" value="{{.Ratio}}">
+                        </div>
+                        <div class="service-price">{{.ResourceTariffCost}} {{.ResourceTariff}}</div>
+                        <div class="service-value">{{.NeededAmount}} {{.ResourceMeasurement}}</div>
+                        <div class="service-cost">{{.TotalCost}} руб</div>
+                        <div class="service-labels">
+                            <div class="service-label">Наименование</div>
+                            <div class="service-label">Интенсивность использования (от 0.5 до 1.5)</div>
+                            <div class="service-label">Тариф</div>
+                            <div class="service-label">Ожидаемое потребление</div>
+                            <div class="service-label">Стоимость</div>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+            </div>
+            
+            <div class="action-buttons">
+                <div class="total-section">
+                    <span class="total-label">Итого:</span>
+                    <span class="total-amount">{{.harvestApplicationTotalCost}} руб</span>
+                </div>
+                
+                <div class="buttons-group">
+                    <form action="/harvestApplication/{{.harvestApplicationID}}/form" method="POST">
+                        <button type="submit" class="btn-save">Сохранить заявку</button>
+                    </form>
+                    <form action="/harvestApplication/{{.harvestApplicationID}}/delete" method="POST">
+                        <button type="submit" class="btn-delete">Удалить заявку</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

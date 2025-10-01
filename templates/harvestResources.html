@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тепличный север</title>
+    <link rel="stylesheet" href="/statics/styles/harvestResources.css?v=20250915">
+</head>
+<body>
+<header>
+    <h1>
+        <a href="/harvestResources" style="color: white; text-decoration: none;">
+            Тепличный север
+        </a>
+    </h1>
+</header>
+    
+    <section class="search-section">
+        <form method="GET" action="/harvestResources" class="search-box">
+            <input type="text" name="harvestQuery" placeholder="Поиск по наименованию" value="{{ .harvestQuery }}">
+            <button type="submit" style="display: none;">Поиск</button>
+        </form>
+    </section>
+    
+    <section class="services-container">
+        <div class="services-grid">
+            {{ $appID := .harvestApplicationID }}
+            {{range .harvestResources}}
+            <div class="service-card">
+                <img src="{{.ImageURL}}" alt="{{.Name}}" class="service-image">
+                <div class="service-content">
+                    <h3 class="service-title">{{.Name}}</h3>
+                    <h5 class="service-price">{{.Tariff}}</h5>
+                    <p class="service-description">{{.Description}}</p>
+                    <div class="service-actions">
+                        <a href="/harvestDetailedResource/{{.ID}}" class="btn btn-details">Подробнее</a>
+                        <form method="POST" action="/harvestApplication/{{$appID}}/addResource">
+                            <input type="hidden" name="resource_id" value="{{.ID}}">
+                            <button type="submit" class="btn btn-details">В заявку</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {{else}}
+            <div class="no-services">
+                <p>Услуги не найдены</p>
+            </div>
+            {{end}}
+        </div>
+    </section>
+    {{if gt .harvestApplicationCount 0}}
+    <a href="/harvestApplication/{{.harvestApplicationID}}" class="cart-container">
+        <img src="http://127.0.0.1:9000/lab1/card.webp" 
+            alt="Корзина" 
+            class="cart-icon">
+        <span class="cart-badge">{{.harvestApplicationCount}}</span>
+    </a>
+    {{else}}
+    <div class="cart-container">
+        <img src="http://127.0.0.1:9000/lab1/disabled.webp" 
+            alt="Корзина" 
+            class="cart-icon disabled">
+    </div>
+    {{end}}
+</body>
+</html>
