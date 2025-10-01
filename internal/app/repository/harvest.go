@@ -26,13 +26,17 @@ func (r *HarvestModel) GetUserDraftApplication(userID int) (*ds.HarvestApplicati
 		return nil, err
 	}
 
+	weight := 550
+	fullCost := 1
+	productivity := 10
+
 	application = ds.HarvestApplication{
-		Status:    "draft",
-		CreatorID: userID,
-		CreatedAt: time.Now(),
-		Weight:    0,
-		FullCost:  0,
-		CultureID: 1,
+		Status:       "draft",
+		CreatorID:    userID,
+		CreatedAt:    time.Now(),
+		Weight:       &weight,
+		FullCost:     &fullCost,
+		Productivity: &productivity,
 	}
 
 	if err := r.db.Create(&application).Error; err != nil {
@@ -57,21 +61,26 @@ func (r *HarvestModel) GetHarvestResources() ([]ds.HarvestResource, error) {
 	return harvestResources, nil
 }
 
-func (r *HarvestModel) GetHarvestCultures() ([]ds.HarvestCulture, error) {
-	var harvestCultures []ds.HarvestCulture
+func (r *HarvestModel) GetHarvestApplicationInfo(id int) (ds.HarvestApplicationInfo, error) {
+	var harvestApplicationInfo ds.HarvestApplication
 
-	err := r.db.Find(&harvestCultures).Error
-	if err != nil {
-		return nil, err
+	result := r.db.Where("id = ?", id).First(&harvestApplicationInfo)
+	if result.Error != nil {
+		return ds.HarvestApplicationInfo{}, fmt.Errorf("услуга не найдена: %w", result.Error)
 	}
 
-	return harvestCultures, nil
+	applicationInfo := ds.HarvestApplicationInfo{
+		Productivity: harvestApplicationInfo.Productivity,
+		Weight:       harvestApplicationInfo.Weight,
+	}
+
+	return applicationInfo, nil
 }
 
 func (r *HarvestModel) GetHarvestApplication(id int) ([]map[string]interface{}, error) {
 	var harvestApplication ds.HarvestApplication
 
-	err := r.db.Preload("Resources.Resource").Preload("Culture").
+	err := r.db.Preload("Resources.Resource").
 		Where("id = ?", id).First(&harvestApplication).Error
 	if err != nil {
 		return nil, fmt.Errorf("заявка не найдена")
@@ -82,18 +91,14 @@ func (r *HarvestModel) GetHarvestApplication(id int) ([]map[string]interface{}, 
 	}
 
 	plannedWeight := harvestApplication.Weight
-	if plannedWeight == 0 {
-		plannedWeight = 550 // дефолтный урожай
-	}
 
-	productivity := harvestApplication.Culture.Productivity
+	productivity := harvestApplication.Productivity
 
 	var applicationItems []map[string]interface{}
 	for _, item := range harvestApplication.Resources {
 		resource := item.Resource
 
-		rawAmount := float64(plannedWeight) / float64(productivity) *
-			float64(item.Ratio) * resource.Requirement
+		rawAmount := float64(*plannedWeight) / float64(*productivity) * float64(item.Ratio) * resource.Requirement
 		neededAmount := int(math.Ceil(rawAmount))
 
 		totalCost := neededAmount * int(resource.TariffCost)
@@ -181,14 +186,13 @@ func (r *HarvestModel) AddResourceToApplication(applicationID, resourceID int) e
 		Ratio:         1,
 		NeededAmount:  0,
 		TotalCost:     0,
-		CreatedAt:     time.Now(),
 	}
 
 	return r.db.Create(&applicationResource).Error
 }
 
 func (r *HarvestModel) DeleteApplication(applicationID int) error {
-	result := r.db.Exec("UPDATE harvest_applications SET status = 'deleted' WHERE id = ? AND status != 'deleted'", applicationID)
+	result := r.db.Exec("UPDATE harvest_applications SET status = 'deleted' WHERE id = ?", applicationID)
 
 	if result.Error != nil {
 		return result.Error
@@ -201,14 +205,167 @@ func (r *HarvestModel) DeleteApplication(applicationID int) error {
 	return nil
 }
 
-func (r *HarvestModel) CheckApplicationStatus(id int) (string, error) {
+func (r *HarvestModel) FormApplication(id int) error {
 	var application ds.HarvestApplication
-	err := r.db.Select("status").Where("id = ? AND status = 'deleted'", id).First(&application).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "active", nil
+
+	result := r.db.First(&application, "id = ? AND status = ?", id, "draft")
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("заявка не найдена")
 		}
-		return "", err
+		return result.Error
 	}
-	return application.Status, nil
+
+	result = r.db.Model(&application).Update("status", "submitted")
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+func (r *HarvestModel) SetApplicationChanges(id, weight, productivity int) error {
+	var application ds.HarvestApplication
+
+	result := r.db.First(&application, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("заявка не найдена")
+		}
+		return result.Error
+	}
+
+	result = r.db.Model(&application).Updates(map[string]interface{}{
+		"weight":       weight,
+		"productivity": productivity,
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+func (r *HarvestModel) CreateResource(resource *ds.HarvestResource) error {
+	resource.CreatedAt = time.Now()
+	resource.IsDeleted = false
+	return r.db.Create(resource).Error
+}
+
+func (r *HarvestModel) UpdateResource(id int, updates map[string]interface{}) error {
+	result := r.db.Model(&ds.HarvestResource{}).Where("id = ? AND is_deleted = false", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("ресурс не найден")
+	}
+	return nil
+}
+
+func (r *HarvestModel) DeleteResource(id int) error {
+	result := r.db.Model(&ds.HarvestResource{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"is_deleted": true,
+		"deleted_at": time.Now(),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("ресурс не найден")
+	}
+	return nil
+}
+
+func (r *HarvestModel) SetResourceImage(id int, imageURL string) error {
+	return r.db.Model(&ds.HarvestResource{}).Where("id = ? AND is_deleted = false", id).Update("image_url", imageURL).Error
+}
+
+func (r *HarvestModel) GetUserCart(userID int) ([]ds.HarvestApplication, error) {
+	var applications []ds.HarvestApplication
+	err := r.db.Where("creator_id = ? AND status = 'draft'", userID).
+		Preload("Resources.Resource").
+		Find(&applications).Error
+	return applications, err
+}
+
+func (r *HarvestModel) GetAllHarvestApplications() ([]ds.HarvestApplication, error) {
+	var applications []ds.HarvestApplication
+	err := r.db.Preload("Resources.Resource").
+		Where("status NOT IN ?", []string{"draft", "deleted"}).
+		Find(&applications).Error
+	return applications, err
+}
+
+func (r *HarvestModel) DeclineApplication(applicationID int, moderatorID int, notes string) error {
+	return r.db.Model(&ds.HarvestApplication{}).Where("id = ?", applicationID).Updates(map[string]interface{}{
+		"status":       "rejected",
+		"moderator_id": moderatorID,
+		"notes":        notes,
+	}).Error
+}
+
+func (r *HarvestModel) DeleteApplicationResource(applicationID, resourceID int) error {
+	result := r.db.Where("application_id = ? AND resource_id = ?", applicationID, resourceID).
+		Delete(&ds.ApplicationResource{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("ресурс не найден в заявке")
+	}
+	return nil
+}
+
+func (r *HarvestModel) SetApplicationResourceCoeff(applicationID, resourceID int, coefficient float64) error {
+	if coefficient < 0.5 || coefficient > 1.5 {
+		return fmt.Errorf("коэффициент должен быть между 0.5 и 1.5")
+	}
+
+	result := r.db.Model(&ds.ApplicationResource{}).
+		Where("application_id = ? AND resource_id = ?", applicationID, resourceID).
+		Update("ratio", coefficient)
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("ресурс не найден в заявке")
+	}
+	return nil
+}
+
+func (r *HarvestModel) CreateUser(user *ds.User) error {
+	user.CreatedAt = time.Now()
+	user.IsDeleted = false
+	return r.db.Create(user).Error
+}
+
+func (r *HarvestModel) GetUserByID(id int) (*ds.User, error) {
+	var user ds.User
+	err := r.db.Where("id = ? AND is_deleted = false", id).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *HarvestModel) GetUserByUsername(username string) (*ds.User, error) {
+	var user ds.User
+	err := r.db.Where("username = ? AND is_deleted = false", username).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *HarvestModel) UpdateUser(id int, updates map[string]interface{}) error {
+	result := r.db.Model(&ds.User{}).Where("id = ? AND is_deleted = false", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("пользователь не найден")
+	}
+	return nil
 }
