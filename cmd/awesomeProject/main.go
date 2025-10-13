@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"rip2025/internal/app/config"
@@ -30,6 +31,6 @@ func main() {
 
 	hand := handler.NewHarvestController(rep)
 
-	application := pkg.NewApp(conf, router, hand)
+	application, err := pkg.NewApp(context.Background(), conf, router, hand)
 	application.RunApp()
 }

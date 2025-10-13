@@ -6,41 +6,50 @@ import (
 	"time"
 
 	"rip2025/internal/app/ds"
+	"rip2025/internal/app/middleware"
+	"rip2025/internal/app/role"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
 
 func (h *HarvestController) RegisterController(router *gin.Engine) {
-	// API routes
 	api := router.Group("/api")
 	{
-		//lab1
-		api.GET("/harvestResources", h.GetHarvestResources)
-		api.GET("/harvestDetailedResource/:id", h.GetHarvestResource)
-		api.GET("/harvestApplication/:id", h.GetHarvestApplication)
-		api.POST("/harvestApplication/:id/addResource", h.AddResourceToApplication)
-		api.POST("/harvestApplication/:id/delete", h.DeleteApplication)
-		//resources
-		api.POST("/harvestResources/createResource", h.CreateResource)
-		api.PUT("/harvestResources/:id/update", h.UpdateResource)
-		api.DELETE("/harvestResources/:id/delete", h.DeleteResource)
-		api.POST("/harvestResources/:id/setImage", h.SetResourceImage)
-		//application
-		api.GET("/users/:id/cart", h.GetUserCart)
-		api.GET("/harvestApplications", h.GetHarvestApplications)
-		api.POST("/harvestApplication/:id/setChanges", h.SetApplicationChanges)
-		api.POST("/harvestApplication/:id/form", h.FormApplication)
-		api.PUT("/harvestApplication/:id/decline", h.DeclineApplication)
-		//m-m
-		api.PUT("/applicationResource/:id/deleteResource", h.DeleteApplicationResource)
-		api.POST("/applicationResource/:id/setCoeff", h.SetApplicationResourceCoeff)
-		//users
-		api.POST("/users/register", h.RegisterUser)
-		api.GET("/users/:id", h.GetUser)
-		api.PUT("/users/:id/setChanges", h.SetUserChanges)
-		api.POST("/users/:id/login", h.LoginUser)
-		api.POST("/users/:id/logout", h.LogoutUser)
+		guest := api.Group("/")
+		guest.Use(middleware.WithAuthCheck(h.JWTSecret, h.redisClient, role.User, role.Admin, role.Guest))
+		{
+			guest.GET("/harvestResources", h.GetHarvestResources) // Guest
+			guest.GET("/harvestDetailedResource/:id", h.GetHarvestResource)
+			guest.POST("/users/register", h.RegisterUser)
+			guest.POST("/users/login", h.LoginUser)
+		}
+		authUser := api.Group("/")
+		authUser.Use(middleware.WithAuthCheck(h.JWTSecret, h.redisClient, role.User, role.Admin))
+		{
+			authUser.GET("/harvestApplication/:id", h.GetHarvestApplication) // User
+			authUser.POST("/harvestApplication/:id/addResource", h.AddResourceToApplication)
+			authUser.DELETE("/harvestApplication/:id/delete", h.DeleteApplication)
+			authUser.GET("/harvestApplication/:id/harvestCart", h.GetUserCart)
+			authUser.POST("/harvestApplication/:id/setChanges", h.SetApplicationChanges)
+			authUser.POST("/harvestApplication/:id/form", h.FormApplication)
+			authUser.PUT("/applicationResource/:id/deleteResource", h.DeleteApplicationResource)
+			authUser.POST("/applicationResource/:id/setCoeff", h.SetApplicationResourceCoeff)
+			authUser.POST("/users/logout", h.LogoutUser)
+		}
+
+		admin := api.Group("/")
+		admin.Use(middleware.WithAuthCheck(h.JWTSecret, h.redisClient, role.Admin))
+		{
+			admin.POST("/harvestResources/createResource", h.CreateResource) // Admin
+			admin.PUT("/harvestResources/:id/update", h.UpdateResource)
+			admin.DELETE("/harvestResources/:id/delete", h.DeleteResource)
+			admin.POST("/harvestResources/:id/setImage", h.SetResourceImage)
+			admin.GET("/users/:id", h.GetUser)
+			admin.PUT("/users/:id/setChanges", h.SetUserChanges)
+			admin.GET("/harvestApplications", h.GetHarvestApplications)
+			admin.PUT("/harvestApplication/:id/decline", h.DeclineApplication)
+		}
 	}
 }
 
@@ -64,8 +73,6 @@ func (h *HarvestController) successResponse(ctx *gin.Context, data interface{}) 
 	})
 }
 
-// JSON API методы
-
 func (h *HarvestController) GetHarvestResources(ctx *gin.Context) {
 	var harvestResources []ds.HarvestResource
 	var err error
@@ -85,7 +92,11 @@ func (h *HarvestController) GetHarvestResources(ctx *gin.Context) {
 		}
 	}
 
-	userID := 1 // временное решение, нужно получать из контекста аутентификации
+	userIDVal, exists := ctx.Get("user_id")
+	if !exists {
+		userIDVal = 1
+	}
+	userID := userIDVal.(int)
 	draftApp, err := h.HarvestModel.GetUserDraftApplication(userID)
 	if err != nil {
 		h.errorResponse(ctx, http.StatusInternalServerError, "Ошибка получения черновика заявки: "+err.Error())
@@ -382,15 +393,12 @@ func (h *HarvestController) GetUserCart(ctx *gin.Context) {
 		h.errorResponse(ctx, http.StatusBadRequest, "Неверный ID пользователя")
 		return
 	}
-
-	applications, err := h.HarvestModel.GetUserCart(userID)
-	if err != nil {
-		h.errorResponse(ctx, http.StatusInternalServerError, "Ошибка получения корзины: "+err.Error())
-		return
-	}
+	harvestApplication, err := h.HarvestModel.GetUserDraftApplication(userID)
+	amount, err := h.HarvestModel.GetHarvestApplicationCount(harvestApplication.ID)
 
 	h.successResponse(ctx, gin.H{
-		"applications": applications,
+		"application_ID": harvestApplication.ID,
+		"amount":         amount,
 	})
 }
 
@@ -503,8 +511,6 @@ func (h *HarvestController) RegisterUser(ctx *gin.Context) {
 		return
 	}
 
-	// тут захэширую потом
-
 	user := &ds.User{
 		Username:     request.Username,
 		PasswordHash: request.Password, // хэШ!!!!!!!
@@ -520,15 +526,31 @@ func (h *HarvestController) RegisterUser(ctx *gin.Context) {
 		return
 	}
 
+	token, err := h.HarvestModel.GenerateToken(user)
+	if err != nil {
+		h.errorResponse(ctx, http.StatusInternalServerError, "Ошибка генерации токена: "+err.Error())
+		return
+	}
+
+	// Устанавливаем куку
+	ctx.SetCookie(
+		"harvest_jwt",               // имя куки
+		token,                       // значение токена
+		int(24*time.Hour.Seconds()), // время жизни (24 часа)
+		"/",                         // путь
+		"",                          // домен
+		true,                        // secure
+		true,                        // httpOnly
+	)
+
 	userResponse := gin.H{
-		"id":         user.ID,
-		"username":   user.Username,
-		"role":       user.Role,
-		"created_at": user.CreatedAt,
+		"id":       user.ID,
+		"username": user.Username,
+		"role":     user.Role,
 	}
 
 	h.successResponse(ctx, gin.H{
-		"message": "Пользователь успешно зарегистрирован",
+		"message": "Пользователь успешно создан",
 		"user":    userResponse,
 	})
 }
@@ -612,7 +634,22 @@ func (h *HarvestController) LoginUser(ctx *gin.Context) {
 		return
 	}
 
-	token := "generated-jwt-token-here" // джейвити
+	token, err := h.HarvestModel.GenerateToken(user)
+	if err != nil {
+		h.errorResponse(ctx, http.StatusInternalServerError, "Ошибка генерации токена: "+err.Error())
+		return
+	}
+
+	// Устанавливаем куку
+	ctx.SetCookie(
+		"harvest_jwt",               // имя куки
+		token,                       // значение токена
+		int(24*time.Hour.Seconds()), // время жизни (24 часа)
+		"/",                         // путь
+		"",                          // домен
+		true,                        // secure
+		true,                        // httpOnly
+	)
 
 	userResponse := gin.H{
 		"id":       user.ID,
@@ -622,13 +659,36 @@ func (h *HarvestController) LoginUser(ctx *gin.Context) {
 
 	h.successResponse(ctx, gin.H{
 		"message": "Успешный вход",
-		"token":   token,
 		"user":    userResponse,
 	})
 }
 
 func (h *HarvestController) LogoutUser(ctx *gin.Context) {
-	// пока заглушка
+	// Получаем токен из куки
+	token, err := ctx.Cookie("harvest_jwt")
+	if err != nil {
+		h.errorResponse(ctx, http.StatusBadRequest, "Токен не найден")
+		return
+	}
+
+	// Добавляем токен в Redis blacklist
+	err = h.redisClient.WriteJWTToBlacklist(ctx, token, 24*time.Hour) // TTL 24 часа
+	if err != nil {
+		h.errorResponse(ctx, http.StatusInternalServerError, "Ошибка при выходе: "+err.Error())
+		return
+	}
+
+	// Удаляем куку
+	ctx.SetCookie(
+		"harvest_jwt",
+		"",
+		-1, // удаляем куку
+		"/",
+		"",
+		true,
+		true,
+	)
+
 	h.successResponse(ctx, gin.H{
 		"message": "Успешный выход",
 	})

@@ -1,11 +1,15 @@
 package repository
 
 import (
+	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math"
 	"time"
 
+	"github.com/golang-jwt/jwt"
+	"golang.org/x/crypto/argon2"
 	"gorm.io/gorm"
 
 	"rip2025/internal/app/ds"
@@ -368,4 +372,51 @@ func (r *HarvestModel) UpdateUser(id int, updates map[string]interface{}) error 
 		return fmt.Errorf("пользователь не найден")
 	}
 	return nil
+}
+
+func (r *HarvestModel) GenerateToken(user *ds.User) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ds.JWTClaims{
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
+			IssuedAt:  time.Now().Unix(),
+			Issuer:    "harvest-app",
+		},
+		UserID: user.ID,
+		Role:   user.Role,
+	})
+
+	return token.SignedString([]byte(r.jwtSecret))
+}
+
+func (r *HarvestModel) ParseToken(tokenString string) (*ds.JWTClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &ds.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(r.jwtSecret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*ds.JWTClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, jwt.ErrSignatureInvalid
+}
+
+func (r *HarvestModel) HashPass(plainPassword string) []byte {
+	salt := make([]byte, 8)
+	_, err := rand.Read(salt)
+	if err != nil {
+		return []byte{}
+	}
+	hashedPass := argon2.IDKey([]byte(plainPassword), []byte(salt), 1, 64*1024, 4, 32)
+	return append(salt, hashedPass...)
+}
+
+func CheckPass(passHash []byte, plainPassword string) bool {
+	salt := passHash[:8]
+	userHash := argon2.IDKey([]byte(plainPassword), salt, 1, 64*1024, 4, 32)
+	userHashedPassword := append(salt, userHash...)
+	return bytes.Equal(userHashedPassword, passHash)
 }

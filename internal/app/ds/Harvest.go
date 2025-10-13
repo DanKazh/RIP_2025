@@ -1,6 +1,16 @@
 package ds
 
-import "time"
+import (
+	"time"
+
+	"github.com/golang-jwt/jwt"
+)
+
+type JWTClaims struct {
+	jwt.StandardClaims
+	UserID int    `json:"user_id"`
+	Role   string `json:"role"`
+}
 
 type HarvestResource struct {
 	ID                  int        `gorm:"primaryKey" json:"id,omitempty"`
@@ -51,7 +61,7 @@ type User struct {
 	ID           int        `gorm:"primaryKey" json:"id"`
 	Username     string     `gorm:"size:50;uniqueIndex" json:"username"`
 	PasswordHash string     `gorm:"size:255" json:"-"`
-	Role         string     `gorm:"size:20;default:user" json:"role"`
+	Role         string     `gorm:"size:20" json:"role"`
 	CreatedAt    time.Time  `json:"created_at"`
 	DeletedAt    *time.Time `json:"deleted_at,omitempty"`
 	IsDeleted    bool       `gorm:"default:false" json:"is_deleted"`

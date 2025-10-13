@@ -1,2 +1,9 @@
 ServiceHost = "0.0.0.0"
 ServicePort = 8081
+
+# НАСТРОЙКИ Redis
+[Redis]
+
+# Таймауты в миллисекундах
+DialTimeout = 10000000000  
+ReadTimeout = 10000000000
