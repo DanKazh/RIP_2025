@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"rip2025/internal/app/ds"
@@ -16,6 +18,7 @@ const cookieName = "harvest_jwt"
 
 func WithAuthCheck(jwtSecret string, redisClient *redis.Client, assignedRoles ...role.Role) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
+		fmt.Printf("=== COOKIES: %+v\n", ctx.Request.Cookies())
 		allowsGuest := false
 		for _, r := range assignedRoles {
 			if r == role.Guest {
@@ -24,19 +27,22 @@ func WithAuthCheck(jwtSecret string, redisClient *redis.Client, assignedRoles ..
 			}
 		}
 
-		if allowsGuest == true {
-			ctx.Next()
-			return
-		}
-
 		cookie, err := ctx.Request.Cookie(cookieName)
 		if err != nil {
+			if allowsGuest {
+				ctx.Next()
+				return
+			}
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 
-		tokenStr := cookie.Value
+		tokenStr := strings.TrimSpace(cookie.Value)
 		if tokenStr == "" {
+			if allowsGuest {
+				ctx.Next()
+				return
+			}
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
@@ -50,18 +56,31 @@ func WithAuthCheck(jwtSecret string, redisClient *redis.Client, assignedRoles ..
 		token, err := jwt.ParseWithClaims(tokenStr, &ds.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		})
+
 		if err != nil {
+			if allowsGuest {
+				ctx.Next()
+				return
+			}
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 
 		claims, ok := token.Claims.(*ds.JWTClaims)
 		if !ok || !token.Valid {
+			if allowsGuest {
+				ctx.Next()
+				return
+			}
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 
 		if claims.ExpiresAt < time.Now().Unix() {
+			if allowsGuest {
+				ctx.Next()
+				return
+			}
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token expired"})
 			return
 		}

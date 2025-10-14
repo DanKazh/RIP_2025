@@ -1,0 +1,807 @@
+basePath: /api
+definitions:
+  ds.AddResourceRequest:
+    properties:
+      resource_id:
+        type: integer
+    required:
+    - resource_id
+    type: object
+  ds.DeclineApplicationRequest:
+    properties:
+      moderator_id:
+        type: integer
+      notes:
+        type: string
+    required:
+    - moderator_id
+    - notes
+    type: object
+  ds.DeleteApplicationResourceRequest:
+    properties:
+      application_id:
+        type: integer
+    required:
+    - application_id
+    type: object
+  ds.HarvestResource:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      detailed_description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      is_deleted:
+        type: boolean
+      measurement:
+        type: string
+      name:
+        type: string
+      requirement:
+        type: number
+      tariff:
+        type: string
+      tariff_cost:
+        type: integer
+    type: object
+  ds.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  ds.RegisterRequest:
+    properties:
+      password:
+        type: string
+      role:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  ds.SetApplicationChangesRequest:
+    properties:
+      productivity:
+        type: integer
+      weight:
+        type: integer
+    required:
+    - productivity
+    - weight
+    type: object
+  ds.SetApplicationResourceCoeffRequest:
+    properties:
+      application_id:
+        type: integer
+      coefficient:
+        type: number
+    required:
+    - application_id
+    - coefficient
+    type: object
+  ds.SetResourceImageRequest:
+    properties:
+      image_url:
+        type: string
+    required:
+    - image_url
+    type: object
+  ds.StandardResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  ds.UpdateUserRequest:
+    properties:
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: API для системы управления урожаем
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Harvest API
+  version: "1.0"
+paths:
+  /applicationResource/{id}/deleteResource:
+    put:
+      consumes:
+      - application/json
+      description: Удалить ресурс из заявки на урожай
+      parameters:
+      - description: ID ресурса
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: ID заявки
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.DeleteApplicationResourceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить ресурс из заявки
+      tags:
+      - application
+  /applicationResource/{id}/setCoeff:
+    post:
+      consumes:
+      - application/json
+      description: Установить коэффициент для ресурса в заявке на урожай
+      parameters:
+      - description: ID ресурса
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные коэффициента
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.SetApplicationResourceCoeffRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Установить коэффициент для ресурса в заявке
+      tags:
+      - application
+  /harvestApplication/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить детальную информацию о заявке на урожай
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить информацию о заявке
+      tags:
+      - application
+  /harvestApplication/{id}/addResource:
+    post:
+      consumes:
+      - application/json
+      description: Добавить ресурс урожая в существующую заявку
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные ресурса
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.AddResourceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Добавить ресурс в заявку
+      tags:
+      - application
+  /harvestApplication/{id}/decline:
+    put:
+      consumes:
+      - application/json
+      description: Отклонить заявку на урожай (только для администраторов)
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные отклонения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.DeclineApplicationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Отклонить заявку
+      tags:
+      - admin
+  /harvestApplication/{id}/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Удалить заявку на урожай
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить заявку
+      tags:
+      - application
+  /harvestApplication/{id}/form:
+    post:
+      consumes:
+      - application/json
+      description: Отправить заявку на обработку
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Отправить заявку
+      tags:
+      - application
+  /harvestApplication/{id}/harvestCart:
+    get:
+      consumes:
+      - application/json
+      description: Получить информацию о корзине заявок пользователя
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить корзину пользователя
+      tags:
+      - application
+  /harvestApplication/{id}/setChanges:
+    post:
+      consumes:
+      - application/json
+      description: Установить изменения веса и продуктивности для заявки
+      parameters:
+      - description: ID заявки
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Данные изменений
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.SetApplicationChangesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить параметры заявки
+      tags:
+      - application
+  /harvestApplications:
+    get:
+      consumes:
+      - application/json
+      description: Получить список всех заявок (только для администраторов)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить все заявки
+      tags:
+      - admin
+  /harvestDetailedResource/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить детальную информацию о конкретном ресурсе урожая
+      parameters:
+      - description: ID ресурса
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить детальную информацию о ресурсе
+      tags:
+      - harvest
+  /harvestResources:
+    get:
+      consumes:
+      - application/json
+      description: Получить все ресурсы урожая с возможностью поиска
+      parameters:
+      - description: Поисковый запрос
+        in: query
+        name: harvestQuery
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить список ресурсов урожая
+      tags:
+      - harvest
+  /harvestResources/{id}/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Удалить ресурс урожая (только для администраторов)
+      parameters:
+      - description: ID ресурса
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Удалить ресурс
+      tags:
+      - admin
+  /harvestResources/{id}/setImage:
+    post:
+      consumes:
+      - application/json
+      description: Установить или обновить изображение ресурса (только для администраторов)
+      parameters:
+      - description: ID ресурса
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: URL изображения
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.SetResourceImageRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Установить изображение для ресурса
+      tags:
+      - admin
+  /harvestResources/{id}/update:
+    put:
+      consumes:
+      - application/json
+      description: Обновить информацию о ресурсе урожая (только для администраторов)
+      parameters:
+      - description: ID ресурса
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновляемые поля
+        in: body
+        name: updates
+        required: true
+        schema:
+          $ref: '#/definitions/ds.HarvestResource'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновить ресурс
+      tags:
+      - admin
+  /harvestResources/createResource:
+    post:
+      consumes:
+      - application/json
+      description: Создать новый ресурс урожая (только для администраторов)
+      parameters:
+      - description: Данные ресурса
+        in: body
+        name: resource
+        required: true
+        schema:
+          $ref: '#/definitions/ds.HarvestResource'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Создать новый ресурс
+      tags:
+      - admin
+  /users/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Получить информацию о пользователе по ID (только для администраторов)
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Получить информацию о пользователе
+      tags:
+      - admin
+  /users/{id}/setChanges:
+    put:
+      consumes:
+      - application/json
+      description: Изменить данные пользователя (только для администраторов)
+      parameters:
+      - description: ID пользователя
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновляемые данные
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Изменить данные пользователя
+      tags:
+      - admin
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: Аутентификация пользователя и получение токена
+      parameters:
+      - description: Данные входа
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      summary: Вход пользователя
+      tags:
+      - auth
+  /users/logout:
+    post:
+      consumes:
+      - application/json
+      description: Выход пользователя и инвалидация токена
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      security:
+      - BearerAuth: []
+      summary: Выход пользователя
+      tags:
+      - auth
+  /users/register:
+    post:
+      consumes:
+      - application/json
+      description: Зарегистрировать нового пользователя
+      parameters:
+      - description: Данные регистрации
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ds.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ds.StandardResponse'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+schemes:
+- http
+swagger: "2.0"

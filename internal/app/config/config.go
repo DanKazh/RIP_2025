@@ -18,6 +18,7 @@ type Config struct {
 	NewsServiceAddr string
 
 	Redis RedisConfig
+	Minio MinioConfig
 }
 
 type RedisConfig struct {
@@ -27,6 +28,14 @@ type RedisConfig struct {
 	User        string
 	DialTimeout time.Duration
 	ReadTimeout time.Duration
+}
+
+type MinioConfig struct {
+	Endpoint  string
+	Bucket    string
+	AccessKey string
+	SecretKey string
+	UseSSL    bool
 }
 
 const (

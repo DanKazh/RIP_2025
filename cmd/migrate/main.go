@@ -9,6 +9,21 @@ import (
 	"gorm.io/gorm"
 )
 
+// @title Harvest API
+// @version 1.0
+// @description API для системы управления урожаем
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.swagger.io/support
+// @contact.email support@swagger.io
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8081
+// @BasePath /api
+// @schemes http
 func main() {
 	_ = godotenv.Load()
 	db, err := gorm.Open(postgres.Open(dsn.FromEnv()), &gorm.Config{})

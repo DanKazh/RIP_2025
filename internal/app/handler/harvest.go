@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+
+	_ "rip2025/docs"
 )
 
 func (h *HarvestController) RegisterController(router *gin.Engine) {
@@ -30,10 +33,10 @@ func (h *HarvestController) RegisterController(router *gin.Engine) {
 			authUser.GET("/harvestApplication/:id", h.GetHarvestApplication) // User
 			authUser.POST("/harvestApplication/:id/addResource", h.AddResourceToApplication)
 			authUser.DELETE("/harvestApplication/:id/delete", h.DeleteApplication)
-			authUser.GET("/harvestApplication/:id/harvestCart", h.GetUserCart)
+			authUser.GET("/harvestApplication/harvestCart", h.GetUserCart)
 			authUser.POST("/harvestApplication/:id/setChanges", h.SetApplicationChanges)
 			authUser.POST("/harvestApplication/:id/form", h.FormApplication)
-			authUser.PUT("/applicationResource/:id/deleteResource", h.DeleteApplicationResource)
+			authUser.DELETE("/applicationResource/:id/deleteResource", h.DeleteApplicationResource)
 			authUser.POST("/applicationResource/:id/setCoeff", h.SetApplicationResourceCoeff)
 			authUser.POST("/users/logout", h.LogoutUser)
 		}
@@ -68,11 +71,21 @@ func (h *HarvestController) errorResponse(ctx *gin.Context, statusCode int, mess
 
 func (h *HarvestController) successResponse(ctx *gin.Context, data interface{}) {
 	ctx.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   data,
+		"data": data,
 	})
 }
 
+// GetHarvestResources godoc
+// @Summary Получить список ресурсов урожая
+// @Description Получить все ресурсы урожая с возможностью поиска
+// @Tags harvest
+// @Accept json
+// @Produce json
+// @Param harvestQuery query string false "Поисковый запрос"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestResources [get]
 func (h *HarvestController) GetHarvestResources(ctx *gin.Context) {
 	var harvestResources []ds.HarvestResource
 	var err error
@@ -94,7 +107,11 @@ func (h *HarvestController) GetHarvestResources(ctx *gin.Context) {
 
 	userIDVal, exists := ctx.Get("user_id")
 	if !exists {
-		userIDVal = 1
+		h.successResponse(ctx, gin.H{
+			"resources":   harvestResources,
+			"searchQuery": searchHarvestQuery,
+		})
+		return
 	}
 	userID := userIDVal.(int)
 	draftApp, err := h.HarvestModel.GetUserDraftApplication(userID)
@@ -103,19 +120,25 @@ func (h *HarvestController) GetHarvestResources(ctx *gin.Context) {
 		return
 	}
 
-	applicationCount, err := h.HarvestModel.GetHarvestApplicationCount(draftApp.ID)
-	if err != nil {
-		applicationCount = 0
-	}
-
 	h.successResponse(ctx, gin.H{
-		"resources":        harvestResources,
-		"searchQuery":      searchHarvestQuery,
-		"applicationCount": applicationCount,
-		"applicationID":    draftApp.ID,
+		"resources":     harvestResources,
+		"searchQuery":   searchHarvestQuery,
+		"applicationID": draftApp.ID,
 	})
 }
 
+// GetHarvestResource godoc
+// @Summary Получить детальную информацию о ресурсе
+// @Description Получить детальную информацию о конкретном ресурсе урожая
+// @Tags harvest
+// @Accept json
+// @Produce json
+// @Param id path int true "ID ресурса"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 404 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestDetailedResource/{id} [get]
 func (h *HarvestController) GetHarvestResource(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -133,6 +156,18 @@ func (h *HarvestController) GetHarvestResource(ctx *gin.Context) {
 	h.successResponse(ctx, harvestResource)
 }
 
+// GetHarvestApplication godoc
+// @Summary Получить информацию о заявке
+// @Description Получить детальную информацию о заявке на урожай
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID заявки"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 404 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id} [get]
 func (h *HarvestController) GetHarvestApplication(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -167,6 +202,19 @@ func (h *HarvestController) GetHarvestApplication(ctx *gin.Context) {
 	})
 }
 
+// AddResourceToApplication godoc
+// @Summary Добавить ресурс в заявку
+// @Description Добавить ресурс урожая в существующую заявку
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID заявки"
+// @Param request body ds.AddResourceRequest true "Данные ресурса"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id}/addResource [post]
 func (h *HarvestController) AddResourceToApplication(ctx *gin.Context) {
 	applicationIDStr := ctx.Param("id")
 	applicationID, err := strconv.Atoi(applicationIDStr)
@@ -191,10 +239,24 @@ func (h *HarvestController) AddResourceToApplication(ctx *gin.Context) {
 	}
 
 	h.successResponse(ctx, gin.H{
-		"message": "Ресурс успешно добавлен в заявку",
+		"applicationID": applicationID,
+		"resourceID":    request.ResourceID,
+		"message":       "Ресурс успешно добавлен в заявку",
 	})
 }
 
+// DeleteApplication godoc
+// @Summary Удалить заявку
+// @Description Удалить заявку на урожай
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID заявки"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id}/delete [delete]
 func (h *HarvestController) DeleteApplication(ctx *gin.Context) {
 	applicationIDStr := ctx.Param("id")
 	applicationID, err := strconv.Atoi(applicationIDStr)
@@ -214,6 +276,19 @@ func (h *HarvestController) DeleteApplication(ctx *gin.Context) {
 	})
 }
 
+// SetApplicationChanges godoc
+// @Summary Изменить параметры заявки
+// @Description Установить изменения веса и продуктивности для заявки
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID заявки"
+// @Param request body ds.SetApplicationChangesRequest true "Данные изменений"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id}/setChanges [post]
 func (h *HarvestController) SetApplicationChanges(ctx *gin.Context) {
 	applicationIDStr := ctx.Param("id")
 	applicationID, err := strconv.Atoi(applicationIDStr)
@@ -243,6 +318,18 @@ func (h *HarvestController) SetApplicationChanges(ctx *gin.Context) {
 	})
 }
 
+// FormApplication godoc
+// @Summary Отправить заявку
+// @Description Отправить заявку на обработку
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID заявки"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id}/form [post]
 func (h *HarvestController) FormApplication(ctx *gin.Context) {
 	applicationIDStr := ctx.Param("id")
 	applicationID, err := strconv.Atoi(applicationIDStr)
@@ -262,6 +349,18 @@ func (h *HarvestController) FormApplication(ctx *gin.Context) {
 	})
 }
 
+// CreateResource godoc
+// @Summary Создать новый ресурс
+// @Description Создать новый ресурс урожая (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param resource body ds.HarvestResource true "Данные ресурса"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestResources/createResource [post]
 func (h *HarvestController) CreateResource(ctx *gin.Context) {
 	var resource ds.HarvestResource
 	if err := ctx.ShouldBindJSON(&resource); err != nil {
@@ -285,6 +384,19 @@ func (h *HarvestController) CreateResource(ctx *gin.Context) {
 	})
 }
 
+// UpdateResource godoc
+// @Summary Обновить ресурс
+// @Description Обновить информацию о ресурсе урожая (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "ID ресурса"
+// @Param updates body ds.HarvestResource true "Обновляемые поля"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestResources/{id}/update [put]
 func (h *HarvestController) UpdateResource(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -341,6 +453,18 @@ func (h *HarvestController) UpdateResource(ctx *gin.Context) {
 	})
 }
 
+// DeleteResource godoc
+// @Summary Удалить ресурс
+// @Description Удалить ресурс урожая (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "ID ресурса"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestResources/{id}/delete [delete]
 func (h *HarvestController) DeleteResource(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -359,6 +483,19 @@ func (h *HarvestController) DeleteResource(ctx *gin.Context) {
 	})
 }
 
+// SetResourceImage godoc
+// @Summary Установить изображение для ресурса
+// @Description Установить или обновить изображение ресурса (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "ID ресурса"
+// @Param request body ds.SetResourceImageRequest true "URL изображения"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestResources/{id}/setImage [post]
 func (h *HarvestController) SetResourceImage(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -386,14 +523,26 @@ func (h *HarvestController) SetResourceImage(ctx *gin.Context) {
 	})
 }
 
+// GetUserCart godoc
+// @Summary Получить корзину пользователя
+// @Description Получить информацию о корзине заявок пользователя
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID пользователя"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id}/harvestCart [get]
 func (h *HarvestController) GetUserCart(ctx *gin.Context) {
-	userIDStr := ctx.Param("id")
-	userID, err := strconv.Atoi(userIDStr)
+	userIDStr, _ := ctx.Get("user_id")
+	userID := userIDStr.(int)
+	fmt.Println(userID)
+	harvestApplication, err := h.HarvestModel.GetUserDraftApplication(userID)
 	if err != nil {
-		h.errorResponse(ctx, http.StatusBadRequest, "Неверный ID пользователя")
+		h.errorResponse(ctx, http.StatusBadRequest, "Неверный формат данных")
 		return
 	}
-	harvestApplication, err := h.HarvestModel.GetUserDraftApplication(userID)
 	amount, err := h.HarvestModel.GetHarvestApplicationCount(harvestApplication.ID)
 
 	h.successResponse(ctx, gin.H{
@@ -402,6 +551,16 @@ func (h *HarvestController) GetUserCart(ctx *gin.Context) {
 	})
 }
 
+// GetHarvestApplications godoc
+// @Summary Получить все заявки
+// @Description Получить список всех заявок (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Success 200 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplications [get]
 func (h *HarvestController) GetHarvestApplications(ctx *gin.Context) {
 	applications, err := h.HarvestModel.GetAllHarvestApplications()
 	if err != nil {
@@ -415,6 +574,19 @@ func (h *HarvestController) GetHarvestApplications(ctx *gin.Context) {
 	})
 }
 
+// DeclineApplication godoc
+// @Summary Отклонить заявку
+// @Description Отклонить заявку на урожай (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "ID заявки"
+// @Param request body ds.DeclineApplicationRequest true "Данные отклонения"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /harvestApplication/{id}/decline [put]
 func (h *HarvestController) DeclineApplication(ctx *gin.Context) {
 	applicationIDStr := ctx.Param("id")
 	applicationID, err := strconv.Atoi(applicationIDStr)
@@ -443,6 +615,19 @@ func (h *HarvestController) DeclineApplication(ctx *gin.Context) {
 	})
 }
 
+// DeleteApplicationResource godoc
+// @Summary Удалить ресурс из заявки
+// @Description Удалить ресурс из заявки на урожай
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID ресурса"
+// @Param request body ds.DeleteApplicationResourceRequest true "ID заявки"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /applicationResource/{id}/deleteResource [put]
 func (h *HarvestController) DeleteApplicationResource(ctx *gin.Context) {
 	resourceIDStr := ctx.Param("id")
 	resourceID, err := strconv.Atoi(resourceIDStr)
@@ -470,6 +655,19 @@ func (h *HarvestController) DeleteApplicationResource(ctx *gin.Context) {
 	})
 }
 
+// SetApplicationResourceCoeff godoc
+// @Summary Установить коэффициент для ресурса в заявке
+// @Description Установить коэффициент для ресурса в заявке на урожай
+// @Tags application
+// @Accept json
+// @Produce json
+// @Param id path int true "ID ресурса"
+// @Param request body ds.SetApplicationResourceCoeffRequest true "Данные коэффициента"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /applicationResource/{id}/setCoeff [post]
 func (h *HarvestController) SetApplicationResourceCoeff(ctx *gin.Context) {
 	resourceIDStr := ctx.Param("id")
 	resourceID, err := strconv.Atoi(resourceIDStr)
@@ -498,6 +696,17 @@ func (h *HarvestController) SetApplicationResourceCoeff(ctx *gin.Context) {
 	})
 }
 
+// RegisterUser godoc
+// @Summary Регистрация пользователя
+// @Description Зарегистрировать нового пользователя
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ds.RegisterRequest true "Данные регистрации"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Router /users/register [post]
 func (h *HarvestController) RegisterUser(ctx *gin.Context) {
 	var request ds.RegisterRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
@@ -539,7 +748,7 @@ func (h *HarvestController) RegisterUser(ctx *gin.Context) {
 		int(24*time.Hour.Seconds()), // время жизни (24 часа)
 		"/",                         // путь
 		"",                          // домен
-		true,                        // secure
+		false,                       // secure
 		true,                        // httpOnly
 	)
 
@@ -555,6 +764,18 @@ func (h *HarvestController) RegisterUser(ctx *gin.Context) {
 	})
 }
 
+// GetUser godoc
+// @Summary Получить информацию о пользователе
+// @Description Получить информацию о пользователе по ID (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "ID пользователя"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 404 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /users/{id} [get]
 func (h *HarvestController) GetUser(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -579,6 +800,19 @@ func (h *HarvestController) GetUser(ctx *gin.Context) {
 	h.successResponse(ctx, userResponse)
 }
 
+// SetUserChanges godoc
+// @Summary Изменить данные пользователя
+// @Description Изменить данные пользователя (только для администраторов)
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "ID пользователя"
+// @Param request body ds.UpdateUserRequest true "Обновляемые данные"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /users/{id}/setChanges [put]
 func (h *HarvestController) SetUserChanges(ctx *gin.Context) {
 	idStr := ctx.Param("id")
 	id, err := strconv.Atoi(idStr)
@@ -616,6 +850,17 @@ func (h *HarvestController) SetUserChanges(ctx *gin.Context) {
 	})
 }
 
+// LoginUser godoc
+// @Summary Вход пользователя
+// @Description Аутентификация пользователя и получение токена
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ds.LoginRequest true "Данные входа"
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 401 {object} ds.StandardResponse
+// @Router /users/login [post]
 func (h *HarvestController) LoginUser(ctx *gin.Context) {
 	var request ds.LoginRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
@@ -647,7 +892,7 @@ func (h *HarvestController) LoginUser(ctx *gin.Context) {
 		int(24*time.Hour.Seconds()), // время жизни (24 часа)
 		"/",                         // путь
 		"",                          // домен
-		true,                        // secure
+		false,                       // secure
 		true,                        // httpOnly
 	)
 
@@ -663,6 +908,17 @@ func (h *HarvestController) LoginUser(ctx *gin.Context) {
 	})
 }
 
+// LogoutUser godoc
+// @Summary Выход пользователя
+// @Description Выход пользователя и инвалидация токена
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} ds.StandardResponse
+// @Failure 400 {object} ds.StandardResponse
+// @Failure 500 {object} ds.StandardResponse
+// @Security BearerAuth
+// @Router /users/logout [post]
 func (h *HarvestController) LogoutUser(ctx *gin.Context) {
 	// Получаем токен из куки
 	token, err := ctx.Cookie("harvest_jwt")
@@ -685,7 +941,7 @@ func (h *HarvestController) LogoutUser(ctx *gin.Context) {
 		-1, // удаляем куку
 		"/",
 		"",
-		true,
+		false,
 		true,
 	)
 

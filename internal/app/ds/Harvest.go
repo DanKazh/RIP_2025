@@ -82,3 +82,43 @@ type UpdateUserRequest struct {
 	Username string `json:"username,omitempty"`
 	Role     string `json:"role,omitempty"`
 }
+
+// AddResourceRequest запрос на добавление ресурса в заявку
+type AddResourceRequest struct {
+	ResourceID int `json:"resource_id" binding:"required"`
+}
+
+// SetApplicationChangesRequest запрос на изменение заявки
+type SetApplicationChangesRequest struct {
+	Weight       int `json:"weight" binding:"required"`
+	Productivity int `json:"productivity" binding:"required"`
+}
+
+// DeclineApplicationRequest запрос на отклонение заявки
+type DeclineApplicationRequest struct {
+	ModeratorID int    `json:"moderator_id" binding:"required"`
+	Notes       string `json:"notes" binding:"required"`
+}
+
+// DeleteApplicationResourceRequest запрос на удаление ресурса из заявки
+type DeleteApplicationResourceRequest struct {
+	ApplicationID int `json:"application_id" binding:"required"`
+}
+
+// SetApplicationResourceCoeffRequest запрос на установку коэффициента
+type SetApplicationResourceCoeffRequest struct {
+	ApplicationID int     `json:"application_id" binding:"required"`
+	Coefficient   float64 `json:"coefficient" binding:"required"`
+}
+
+// SetResourceImageRequest запрос на установку изображения
+type SetResourceImageRequest struct {
+	ImageURL string `json:"image_url" binding:"required"`
+}
+
+// StandardResponse стандартный ответ
+type StandardResponse struct {
+	Status  string      `json:"status"`
+	Message string      `json:"message,omitempty"`
+	Data    interface{} `json:"data,omitempty"`
+}
